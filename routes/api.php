@@ -4,6 +4,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\PaymentWebhookController;
+use App\Http\Controllers\ReportController;
 use Illuminate\Support\Facades\Route;
 use App\Models\Order;
 use App\Models\Product;
@@ -31,4 +32,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/orders', [OrderController::class, 'index']);
     Route::post('/orders', [OrderController::class, 'store'])->can('create', Order::class);
     Route::get('/orders/{order}', [OrderController::class, 'show'])->can('view', 'order');
+
+    // Reports (admin only)
+    Route::get('/reports/top-products', ReportController::class)->can('view-reports');
 });
