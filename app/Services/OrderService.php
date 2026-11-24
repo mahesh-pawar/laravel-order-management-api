@@ -10,6 +10,7 @@ use Brick\Math\BigDecimal;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use App\Jobs\SendOrderConfirmationEmail;
 
 class OrderService
 {
@@ -72,7 +73,9 @@ class OrderService
             return $order;
         });
 
-        // Module 4: dispatch the confirmation email job here.
+        // Dispatched after the transaction has committed,
+        // so an email is never sent for an order that was rolled back.
+        SendOrderConfirmationEmail::dispatch($order);
 
         return $order->load('items.product');
     }
