@@ -1,0 +1,326 @@
+{
+  "info": {
+    "name": "Laravel Order Management API",
+    "description": "Import this file into Postman (File > Import).\n\n1. Run Auth > Login as Admin and Auth > Login as Customer once. Their tokens are saved into the collection variables automatically.\n2. Every other request already uses the right token.\n3. Create Product saves {{product_id}} and Place Order saves {{order_id}}, so later requests use them.\n\nDefault users: admin@example.com / password123 and test@example.com / password123.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://127.0.0.1:8000/api" },
+    { "key": "admin_token", "value": "" },
+    { "key": "customer_token", "value": "" },
+    { "key": "product_id", "value": "" },
+    { "key": "order_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register (Customer)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"New Customer\",\n    \"email\": \"new.customer@example.com\",\n    \"password\": \"password123\",\n    \"password_confirmation\": \"password123\"\n}"
+            },
+            "url": "{{base_url}}/register",
+            "description": "Public. Always creates a customer (role is ignored even if sent). 201 + token. 422 if the email is taken or data is invalid."
+          }
+        },
+        {
+          "name": "Login as Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    pm.collectionVariables.set('admin_token', pm.response.json().token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"admin@example.com\",\n    \"password\": \"password123\"\n}"
+            },
+            "url": "{{base_url}}/login",
+            "description": "Saves the token into {{admin_token}}. Wrong credentials return 401."
+          }
+        },
+        {
+          "name": "Login as Customer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    pm.collectionVariables.set('customer_token', pm.response.json().token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"test@example.com\",\n    \"password\": \"password123\"\n}"
+            },
+            "url": "{{base_url}}/login",
+            "description": "Saves the token into {{customer_token}}."
+          }
+        },
+        {
+          "name": "Me (Customer)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{customer_token}}", "type": "string" }] },
+            "url": "{{base_url}}/me",
+            "description": "Returns the logged-in user. 401 without a valid token."
+          }
+        },
+        {
+          "name": "Logout (Customer)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{customer_token}}", "type": "string" }] },
+            "url": "{{base_url}}/logout",
+            "description": "Revokes only the current token. Run Login as Customer again afterwards."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Products",
+      "item": [
+        {
+          "name": "List Products (Admin - all statuses)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }] },
+            "url": {
+              "raw": "{{base_url}}/products?per_page=15&page=1",
+              "host": ["{{base_url}}"],
+              "path": ["products"],
+              "query": [
+                { "key": "per_page", "value": "15" },
+                { "key": "page", "value": "1" }
+              ]
+            },
+            "description": "Admins see active and inactive products (soft-deleted are hidden)."
+          }
+        },
+        {
+          "name": "List Products (Customer - active only, search)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{customer_token}}", "type": "string" }] },
+            "url": {
+              "raw": "{{base_url}}/products?search=pen&per_page=10&page=1",
+              "host": ["{{base_url}}"],
+              "path": ["products"],
+              "query": [
+                { "key": "search", "value": "pen", "description": "Matches name or SKU" },
+                { "key": "per_page", "value": "10", "description": "1 to 100" },
+                { "key": "page", "value": "1" }
+              ]
+            },
+            "description": "Customers see only active products. search matches name or SKU."
+          }
+        },
+        {
+          "name": "Create Product (Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    pm.collectionVariables.set('product_id', pm.response.json().data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Notebook A5\",\n    \"sku\": \"NB-{{$randomInt}}\",\n    \"price\": 49.99,\n    \"stock_quantity\": 20,\n    \"status\": \"active\"\n}"
+            },
+            "url": "{{base_url}}/products",
+            "description": "201 and saves {{product_id}}. 422 on duplicate SKU. 403 if called with the customer token."
+          }
+        },
+        {
+          "name": "Create Product as Customer (expect 403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{customer_token}}", "type": "string" }] },
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": "{{base_url}}/products",
+            "description": "Authorization runs before validation, so this is 403, not 422."
+          }
+        },
+        {
+          "name": "Update Product (Admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"price\": 59.50,\n    \"stock_quantity\": 25\n}"
+            },
+            "url": "{{base_url}}/products/{{product_id}}",
+            "description": "Partial update: send only the fields to change."
+          }
+        },
+        {
+          "name": "Delete Product (Admin, soft delete)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }] },
+            "url": "{{base_url}}/products/{{product_id}}",
+            "description": "Sets deleted_at. The product disappears from lists; old orders keep it."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Orders",
+      "item": [
+        {
+          "name": "Place Order (Customer)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    pm.collectionVariables.set('order_id', pm.response.json().data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{customer_token}}", "type": "string" }] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"items\": [\n        { \"product_id\": {{product_id}}, \"quantity\": 2 }\n    ]\n}"
+            },
+            "url": "{{base_url}}/orders",
+            "description": "Run Create Product first (it sets {{product_id}}). 201 and saves {{order_id}}. Stock is reduced in a locked transaction."
+          }
+        },
+        {
+          "name": "Place Order - Insufficient Stock (expect 422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{customer_token}}", "type": "string" }] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"items\": [\n        { \"product_id\": {{product_id}}, \"quantity\": 1000 }\n    ]\n}"
+            },
+            "url": "{{base_url}}/orders",
+            "description": "422 with errors.items.0.quantity. Stock is not changed."
+          }
+        },
+        {
+          "name": "Place Order as Admin (expect 403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"items\": [\n        { \"product_id\": {{product_id}}, \"quantity\": 1 }\n    ]\n}"
+            },
+            "url": "{{base_url}}/orders",
+            "description": "Only customers place orders."
+          }
+        },
+        {
+          "name": "List My Orders (Customer)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{customer_token}}", "type": "string" }] },
+            "url": "{{base_url}}/orders",
+            "description": "Customers see only their own orders. Admins see all."
+          }
+        },
+        {
+          "name": "List All Orders (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }] },
+            "url": "{{base_url}}/orders"
+          }
+        },
+        {
+          "name": "Show Order (Owner)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{customer_token}}", "type": "string" }] },
+            "url": "{{base_url}}/orders/{{order_id}}",
+            "description": "200 for the owner or an admin. Another customer gets 403 (register a second customer, log in, and use their token to see it)."
+          }
+        }
+      ]
+    }
+  ]
+}
