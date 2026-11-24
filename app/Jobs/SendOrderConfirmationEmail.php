@@ -24,6 +24,8 @@ class SendOrderConfirmationEmail implements ShouldQueue
      */
     public array $backoff = [10, 30];
 
+    public bool $deleteWhenMissingModels = true;
+
     public function __construct(public Order $order)
     {
     }

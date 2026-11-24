@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\OrderStatus;
 use App\Enums\ProductStatus;
 use App\Models\Order;
 use App\Models\Product;
@@ -90,5 +91,54 @@ class OrderService
             ->with('items.product')
             ->latest('id')
             ->paginate(15);
+    }
+
+    /**
+     * Cancel pending orders older than $minutes and restore their stock.
+     *
+     * @return int  how many orders were cancelled
+     */
+    public function cancelStalePending(int $minutes = 30): int
+    {
+        $orderIds = Order::where('status', OrderStatus::Pending)
+            ->where('created_at', '<', now()->subMinutes($minutes))
+            ->pluck('id');
+
+        $cancelled = 0;
+
+        foreach ($orderIds as $orderId) {
+            if ($this->cancelIfStillPending($orderId)) {
+                $cancelled++;
+            }
+        }
+
+        return $cancelled;
+    }
+
+    /**
+     * Cancel one order and restore stock — only if it is still pending.
+     */
+    private function cancelIfStillPending(int $orderId): bool
+    {
+        return DB::transaction(function () use ($orderId) {
+            // Lock the order row so a payment webhook can't change it at the same time
+            $order = Order::whereKey($orderId)->lockForUpdate()->first();
+
+            // Re-check under the lock: it may have been paid a moment ago
+            if (!$order || $order->status !== OrderStatus::Pending) {
+                return false;
+            }
+
+            // Restore stock, in product id order (same order as place() → no deadlocks)
+            foreach ($order->items()->orderBy('product_id')->get() as $item) {
+                Product::withTrashed()
+                    ->whereKey($item->product_id)
+                    ->increment('stock_quantity', $item->quantity);
+            }
+
+            $order->update(['status' => OrderStatus::Cancelled]);
+
+            return true;
+        });
     }
 }
