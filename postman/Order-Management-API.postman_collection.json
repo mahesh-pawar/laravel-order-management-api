@@ -9,7 +9,10 @@
     { "key": "admin_token", "value": "" },
     { "key": "customer_token", "value": "" },
     { "key": "product_id", "value": "" },
-    { "key": "order_id", "value": "" }
+    { "key": "order_id", "value": "" },
+    { "key": "order_total", "value": "" },
+    { "key": "txn_id", "value": "" },
+    { "key": "webhook_secret", "value": "local-webhook-secret-change-me" }
   ],
   "item": [
     {
@@ -237,6 +240,7 @@
                 "exec": [
                   "if (pm.response.code === 201) {",
                   "    pm.collectionVariables.set('order_id', pm.response.json().data.id);",
+                  "    pm.collectionVariables.set('order_total', pm.response.json().data.total_amount);",
                   "}"
                 ]
               }
@@ -318,6 +322,94 @@
             "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{customer_token}}", "type": "string" }] },
             "url": "{{base_url}}/orders/{{order_id}}",
             "description": "200 for the owner or an admin. Another customer gets 403 (register a second customer, log in, and use their token to see it)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payment Webhook",
+      "description": "Set the collection variable webhook_secret to the PAYMENT_WEBHOOK_SECRET value in your .env first. Then run Orders > Place Order (it saves order_id and order_total).",
+      "item": [
+        {
+          "name": "Payment Webhook - new transaction (signed)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// New transaction id for each run of this request",
+                  "pm.collectionVariables.set('txn_id', 'txn_' + Date.now());",
+                  "",
+                  "// Sign the exact body that will be sent: HMAC-SHA256(body, secret)",
+                  "const body = pm.variables.replaceIn(pm.request.body.raw);",
+                  "const secret = pm.collectionVariables.get('webhook_secret');",
+                  "const signature = CryptoJS.HmacSHA256(body, secret).toString(CryptoJS.enc.Hex);",
+                  "pm.request.headers.upsert({ key: 'X-Signature', value: signature });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"transaction_id\":\"{{txn_id}}\",\"order_id\":{{order_id}},\"amount\":\"{{order_total}}\"}"
+            },
+            "url": "{{base_url}}/webhooks/payment",
+            "description": "200 'Payment processed.' and the order becomes paid. The X-Signature header is computed by the pre-request script."
+          }
+        },
+        {
+          "name": "Payment Webhook - replay same transaction (expect already processed)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Reuses the txn_id from the previous request to test idempotency",
+                  "const body = pm.variables.replaceIn(pm.request.body.raw);",
+                  "const secret = pm.collectionVariables.get('webhook_secret');",
+                  "const signature = CryptoJS.HmacSHA256(body, secret).toString(CryptoJS.enc.Hex);",
+                  "pm.request.headers.upsert({ key: 'X-Signature', value: signature });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"transaction_id\":\"{{txn_id}}\",\"order_id\":{{order_id}},\"amount\":\"{{order_total}}\"}"
+            },
+            "url": "{{base_url}}/webhooks/payment",
+            "description": "200 'Payment already processed.' Nothing changes."
+          }
+        },
+        {
+          "name": "Payment Webhook - invalid signature (expect 401)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Signature", "value": "invalid-signature" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"transaction_id\":\"txn_fake\",\"order_id\":{{order_id}},\"amount\":\"{{order_total}}\"}"
+            },
+            "url": "{{base_url}}/webhooks/payment",
+            "description": "401 'Invalid signature.'"
           }
         }
       ]

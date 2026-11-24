@@ -3,12 +3,18 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\PaymentWebhookController;
 use Illuminate\Support\Facades\Route;
 use App\Models\Order;
 use App\Models\Product;
+use App\Http\Middleware\VerifyWebhookSignature;
 
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
+
+// Payment provider webhook — authenticated by HMAC signature, not by user token
+Route::post('/webhooks/payment', PaymentWebhookController::class)
+    ->middleware(VerifyWebhookSignature::class);
 
 // Requires a valid Sanctum token
 Route::middleware('auth:sanctum')->group(function () {
