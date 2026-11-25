@@ -2,40 +2,26 @@
 
 ## Key design decisions
 
-- **Thin controllers, logic in services.** Every request follows Form Request (validation) →
-  Service (business logic) → API Resource (JSON). Controllers only connect these, and authorization
-  runs on the routes (`->can(...)`) so a forbidden user gets `403` before validation runs.
-- **Authorization.** Policies for models (`ProductPolicy`, `OrderPolicy`: customers see only their
-  own orders) and a Gate (`view-reports`) for the report, which is not tied to a model. Public
-  registration always creates a customer; `role` is not mass-assignable.
-- **No overselling.** Placing an order runs in one transaction: product rows are locked with
-  `SELECT … FOR UPDATE` in ascending id order (prevents deadlocks), every item is checked before
-  anything changes, then stock is decremented. Prices and totals are copied into the order, and
-  money is calculated with `BigDecimal` and stored as `DECIMAL`, never floats.
-- **Webhook safety.** The signature is an HMAC-SHA256 of the raw body compared with `hash_equals`
-  (constant time). Idempotency has two layers: the order row is locked first and then the
-  `transaction_id` is checked, and a unique index on `transaction_id` guarantees no duplicate
-  payment at database level. Duplicates return `200` so the provider stops retrying.
-- **Stale-order cancellation** locks each order and re-checks it is still pending, so a payment
-  arriving at the same moment can never leave an order both paid and restocked.
-- **Report** is a single aggregate query (join, group, sum, limit 5) that uses the
-  `orders(status, created_at)` index. Only paid and shipped orders count as "sold".
-- **Simple infrastructure.** Database queue driver and log mailer, so the project needs only PHP
-  and MySQL. Tests run on MySQL (not SQLite) because SQLite ignores row locks.
-- **Compatibility.** Dependencies are resolved for PHP 8.2 (`config.platform.php`) so the lock file
-  installs on 8.2–8.4. Laravel 11 is past security support, so only `laravel/framework` advisories
-  are allowed in `composer.json`; I would move to Laravel 12 in a real project.
+- **Layers:** Form Request → Service → API Resource. Controllers stay thin; Policies/Gates are
+  applied on routes, so a forbidden user gets `403` before validation runs.
+- **No overselling:** order placement runs in one transaction and locks product rows
+  (`FOR UPDATE`, ascending id to avoid deadlocks), checks every item, then reduces stock. Prices
+  and totals are snapshotted; money uses `BigDecimal` and `DECIMAL` columns, never floats.
+- **Webhook:** HMAC-SHA256 of the raw body, compared with `hash_equals`. Idempotent by locking
+  the order before checking `transaction_id`, backed by a unique index.
+- **Stale orders:** each cancellation locks the order and re-checks it is still pending, so a
+  concurrent payment can never be undone.
+- **Report:** one aggregate query using the `orders(status, created_at)` index; only paid and
+  shipped orders count as sold.
+- **Simple setup:** database queue and log mailer (PHP + MySQL only); dependencies resolved for
+  PHP 8.2; tests run on MySQL because SQLite ignores row locks.
 
 ## What I would improve with more time
 
-- Map the rare duplicate-key race on registration (two identical sign-ups at the same instant) to
-  `409 Conflict` instead of a `500`.
-- Endpoints for admins to update order status (ship) and for customers to cancel their own order.
-- A FULLTEXT index (or a search engine) for product search; `LIKE '%term%'` cannot use an index.
-- Rate limiting on login and the webhook, and token expiry for Sanctum tokens.
-- A CI pipeline (GitHub Actions) running the tests on MySQL 8 and PHP 8.2 on every push, plus
-  automated concurrency tests for the locking behaviour.
-- OpenAPI/Swagger documentation generated from the code.
+- Order status endpoints (ship, customer cancel), rate limiting and token expiry.
+- FULLTEXT search instead of `LIKE '%term%'`.
+- CI on MySQL 8 / PHP 8.2 and automated concurrency tests.
+- Upgrade to Laravel 12 (Laravel 11 is past security support).
 
 ## AI-Assisted Development Disclosure
 
@@ -52,7 +38,8 @@ I used **Claude Code** (Anthropic) as a tutor and code reviewer while building t
   cancellation, to verify the locking and consistency mechanisms.
 - It helped generate the Postman collection, README, and the initial draft of this disclosure. It
   also identified that `composer.lock` required PHP 8.4 and, at my request, applied the PHP 8.2
-  platform compatibility fix in `composer.json`.
+  platform compatibility fix in `composer.json`. At my request it also applied the fixes for three
+  edge cases found during API testing (with regression tests) and the retry-count change.
 
 I reviewed the implementation and understand the code and design decisions. I can explain the
 approach, trade-offs, and limitations of the implementation during the technical discussion.
