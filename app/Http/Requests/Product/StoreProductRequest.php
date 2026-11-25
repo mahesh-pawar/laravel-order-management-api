@@ -27,7 +27,7 @@ class StoreProductRequest extends FormRequest
             'name'           => ['required', 'string', 'max:255'],
             'sku'            => ['required', 'string', 'max:64', 'unique:products,sku'],
             'price'          => ['required', 'numeric', 'decimal:0,2', 'min:0', 'max:99999999.99'],
-            'stock_quantity' => ['required', 'integer', 'min:0'],
+            'stock_quantity' => ['required', 'integer', 'min:0', 'max:4294967295'], // unsigned INT max
             'status'         => ['sometimes', Rule::enum(ProductStatus::class)],
         ];
     }

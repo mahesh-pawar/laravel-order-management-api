@@ -27,7 +27,7 @@ class UpdateProductRequest extends FormRequest
             'name'           => ['sometimes', 'string', 'max:255'],
             'sku'            => ['sometimes', 'string', 'max:64', Rule::unique('products', 'sku')->ignore($this->route('product'))],
             'price'          => ['sometimes', 'numeric', 'decimal:0,2', 'min:0', 'max:99999999.99'],
-            'stock_quantity' => ['sometimes', 'integer', 'min:0'],
+            'stock_quantity' => ['sometimes', 'integer', 'min:0', 'max:4294967295'], // unsigned INT max
             'status'         => ['sometimes', Rule::enum(ProductStatus::class)],
         ];
     }
