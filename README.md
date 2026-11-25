@@ -11,7 +11,8 @@ A small Order Management REST API built with **Laravel 11**, **PHP 8.2+** and **
 - **Scheduled command** that cancels unpaid orders after 30 minutes and restores stock
 - Feature tests for every required scenario
 
-See [DESIGN_NOTE.md](DESIGN_NOTE.md) for design decisions, possible improvements and AI tool usage.
+- **Postman collection:** [postman/Order-Management-API.postman_collection.json](postman/Order-Management-API.postman_collection.json)
+- **Design note:** [DESIGN_NOTE.md](DESIGN_NOTE.md) (design decisions, possible improvements and AI tool usage)
 
 ---
 
@@ -227,7 +228,9 @@ Expected output: `Tests: 8 passed`.
 
 ## 5. Testing with Postman
 
-Import **`postman/Order-Management-API.postman_collection.json`** (Postman → Import).
+Import [**postman/Order-Management-API.postman_collection.json**](postman/Order-Management-API.postman_collection.json)
+(Postman → **Import** → select the file). It contains a request for every endpoint below, grouped
+into Auth, Products, Orders, Payment Webhook and Reports.
 
 1. Make sure `php artisan serve` is running (`base_url` is `http://127.0.0.1:8000/api`).
 2. Run **Auth → Login as Admin** and **Auth → Login as Customer**. The tokens are saved into
@@ -245,6 +248,9 @@ Requests that should fail (403, 422, 401) are included and named "(expect …)".
 ## 6. API endpoints
 
 Base URL: `http://127.0.0.1:8000/api`
+
+All of these are ready to run in the [Postman collection](postman/Order-Management-API.postman_collection.json)
+(see [section 5](#5-testing-with-postman)).
 
 Send `Accept: application/json` on every request. Protected endpoints need
 `Authorization: Bearer <token>` (the token comes from register or login).
