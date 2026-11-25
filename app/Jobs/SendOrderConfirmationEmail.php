@@ -15,14 +15,15 @@ class SendOrderConfirmationEmail implements ShouldQueue
     use Queueable;
 
     /**
-     * Try the job up to 3 times before marking it as failed.
+     * Total attempts: the first try + 3 retries on failure.
+     * ($tries counts every attempt, so "retry 3 times" means 4.)
      */
-    public int $tries = 3;
+    public int $tries = 4;
 
     /**
-     * Seconds to wait before retry 1 and retry 2.
+     * Seconds to wait before retry 1, retry 2 and retry 3.
      */
-    public array $backoff = [10, 30];
+    public array $backoff = [10, 30, 60];
 
     public bool $deleteWhenMissingModels = true;
 

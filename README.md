@@ -181,9 +181,9 @@ php artisan queue:work
 ```
 
 Every placed order dispatches `SendOrderConfirmationEmail`. The worker sends it, and the email
-appears in `storage/logs/laravel.log`. The job retries up to **3 times** (10 s, then 30 s
-backoff); after the last failure it is logged and stored in the `failed_jobs` table
-(`php artisan queue:retry all` re-runs failed jobs).
+appears in `storage/logs/laravel.log`. If sending fails, the job is **retried 3 times**
+(4 attempts in total, waiting 10 s, 30 s and 60 s between them). After the last failure it is
+logged and stored in the `failed_jobs` table (`php artisan queue:retry all` re-runs failed jobs).
 
 ### Scheduler (cancel unpaid orders)
 
@@ -399,7 +399,7 @@ app/
 │   ├── Middleware/VerifyWebhookSignature.php   # HMAC check for the webhook
 │   ├── Requests/                               # Form Request validation
 │   └── Resources/                              # API Resources (JSON output)
-├── Jobs/SendOrderConfirmationEmail.php         # queued, 3 tries
+├── Jobs/SendOrderConfirmationEmail.php         # queued, retried 3 times on failure
 ├── Mail/OrderConfirmationMail.php
 ├── Models/                                     # User, Product, Order, OrderItem, Payment
 ├── Policies/                                   # ProductPolicy, OrderPolicy
