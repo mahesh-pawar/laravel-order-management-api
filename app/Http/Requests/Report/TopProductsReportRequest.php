@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Report;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class TopProductsReportRequest extends FormRequest
 {
@@ -22,8 +23,14 @@ class TopProductsReportRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'from' => ['required', 'date_format:Y-m-d'],
-            'to'   => ['required', 'date_format:Y-m-d', 'after_or_equal:from'],
+            'from' => ['required', 'string', 'date_format:Y-m-d'],
+            'to'   => [
+                'required',
+                'string',
+                'date_format:Y-m-d',
+                // Only compare when 'from' is a string; comparing against an array (?from[]=...) crashes
+                Rule::when(is_string($this->input('from')), ['after_or_equal:from']),
+            ],
         ];
     }
 }
